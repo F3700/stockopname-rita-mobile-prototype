@@ -1,0 +1,2392 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Rita Stock Opname API",
+    "version": "1.0.0",
+    "description": "REST API untuk mendukung proses stock opname, pengelolaan produk, dan pemantauan hasil stock opname."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8080",
+      "description": "Local Development"
+    },
+    {
+      "url": "https://api.albertt.my.id",
+      "description": "Hosted Development"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Products",
+      "description": "Endpoint untuk pengelolaan data produk"
+    },
+    {
+      "name": "Departments",
+      "description": "Endpoint untuk pengelolaan data departemen"
+    },
+    {
+      "name": "Categories",
+      "description": "Endpoint untuk pengelolaan data kategori produk"
+    },
+    {
+      "name": "Deleted Products",
+      "description": "Endpoint untuk pengelolaan data produk yang telah dihapus"
+    },
+    {
+      "name": "Stock Opname Session",
+      "description": "Endpoint untuk pengelolaan sesi stock opname"
+    },
+    {
+      "name": "Stock Opname Coordinator",
+      "description": "Endpoint untuk pengelolaan koordinator stock opname"
+    },
+    {
+      "name": "Stock Opname Inspector",
+      "description": "Endpoint untuk pengelolaan inspector stock opname"
+    },
+    {
+      "name": "Stock Opname Racks",
+      "description": "Endpoint untuk pengelolaan rak stock opname"
+    },
+    {
+      "name": "Stock Opname Result Items",
+      "description": "Endpoint untuk pengelolaan hasil stock opname"
+    }
+  ],
+  "paths": {
+    "/products": {
+      "get": {
+        "tags": ["Products"],
+        "summary": "Get products",
+        "description": "Retrieve a paginated list of products with optional search.",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "integer" },
+            "example": 1
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "integer" },
+            "example": 10
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string" },
+            "example": "laptop"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": { "type": "string", "example": "Products fetched successfully" },
+                    "data": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/Product" }
+                    },
+                    "pagination": { "$ref": "#/components/schemas/Pagination" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "500": { "$ref": "#/components/responses/InternalServerError" }
+        }
+      },
+      "post": {
+        "tags": ["Products"],
+        "summary": "Create a new product",
+        "description": "Create a new product with the provided details.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProductRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Product created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": { "type": "string", "example": "Product created successfully" },
+                    "data": { "$ref": "#/components/schemas/Product" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "500": { "$ref": "#/components/responses/InternalServerError" }
+        }
+      }
+    },
+    "/products/last-session": {
+      "get": {
+        "tags": ["Products"],
+        "summary": "Get products with last session info",
+        "description": "Retrieve products with their last stock opname session date and code.",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "default": 20 },
+            "example": 20
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Products last session retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": { "type": "string", "example": "Products last session retrieved successfully" },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "integer", "example": 1 },
+                          "barcode": { "type": "string", "example": "1234567890123" },
+                          "name": { "type": "string", "example": "Product A" },
+                          "last_session_date": { "type": "string", "format": "date-time", "example": "2026-09-10T14:30:00+07:00" },
+                          "last_session_code": { "type": "string", "example": "SO-10-09-2026-01" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": { "$ref": "#/components/responses/InternalServerError" }
+        }
+      }
+    },
+    "/products/sync": {
+      "get": {
+        "tags": ["Products"],
+        "summary": "Sync products by update timestamp",
+        "description": "Retrieve a paginated list of products updated after a specific timestamp, used for data synchronization.",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "integer" },
+            "example": 1
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "integer" },
+            "example": 50
+          },
+          {
+            "name": "updated_after",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string", "format": "date-time" },
+            "example": "2026-08-24T21:58:28+07:00"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": { "type": "string", "example": "Products synced successfully" },
+                    "data": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/Product" }
+                    },
+                    "pagination": { "$ref": "#/components/schemas/Pagination" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "500": { "$ref": "#/components/responses/InternalServerError" }
+        }
+      }
+    },
+    "/products/{id}": {
+      "patch": {
+        "tags": ["Products"],
+        "summary": "Update an existing product",
+        "description": "Update the details of an existing product.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" },
+            "example": 1
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateProductRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Product updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": { "type": "string", "example": "Product updated successfully" },
+                    "data": { "$ref": "#/components/schemas/Product" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "500": { "$ref": "#/components/responses/InternalServerError" }
+        }
+      },
+      "delete": {
+        "tags": ["Products"],
+        "summary": "Delete a product",
+        "description": "Delete an existing product by its ID.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" },
+            "example": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Product deleted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": { "type": "string", "example": "Product deleted successfully" },
+                    "data": { "type": "string", "example": "" }
+                  }
+                }
+              }
+            }
+          },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "500": { "$ref": "#/components/responses/InternalServerError" }
+        }
+      }
+    },
+    "/deleted/products": {
+      "get": {
+        "tags": ["Deleted Products"],
+        "summary": "Get deleted products",
+        "description": "Retrieve a list of products that have been deleted, optionally filtered by their last update timestamp.",
+        "parameters": [
+          {
+            "name": "updated_after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "example": "2026-08-14T10:00:00Z"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Deleted products retrieved successfully"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/DeletedProduct"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Deleted Products"],
+        "summary": "Delete all deleted products",
+        "description": "Permanently delete all products that have been marked as deleted.",
+        "responses": {
+          "200": {
+            "description": "All deleted products removed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "All deleted products removed successfully"
+                    },
+                    "data": {
+                      "type": "string",
+                      "example": ""
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/departments": {
+      "get": {
+        "tags": ["Departments"],
+        "summary": "Get all departments",
+        "description": "Retrieve a paginated list of departments with optional search.",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "integer" },
+            "example": 1
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "integer" },
+            "example": 10
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string" },
+            "example": "IT"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": { "type": "string", "example": "Departments retrieved successfully" },
+                    "data": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/Department" }
+                    },
+                    "pagination": { "$ref": "#/components/schemas/Pagination" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "500": { "$ref": "#/components/responses/InternalServerError" }
+        }
+      },
+      "post": {
+        "tags": ["Departments"],
+        "summary": "Create a new department",
+        "description": "Create a new department with the provided details.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateDepartmentRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Department created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": { "type": "string", "example": "Department created successfully" },
+                    "data": { "$ref": "#/components/schemas/Department" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "500": { "$ref": "#/components/responses/InternalServerError" }
+        }
+      }
+    },
+    "/departments/{id}": {
+      "patch": {
+        "tags": ["Departments"],
+        "summary": "Update an existing department",
+        "description": "Update the details of an existing department.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 1
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateDepartmentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Department updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Department updated successfully"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Department"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Departments"],
+        "summary": "Delete a department",
+        "description": "Delete an existing department by its ID.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" },
+            "example": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Department deleted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": { "type": "string", "example": "Department deleted successfully" },
+                    "data": { "type": "string", "example": "" }
+                  }
+                }
+              }
+            }
+          },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "500": { "$ref": "#/components/responses/InternalServerError" }
+        }
+      }
+    },
+    "/categories": {
+      "get": {
+        "tags": ["Categories"],
+        "summary": "Get all categories",
+        "description": "Retrieve a paginated list of product categories with optional search.",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "integer" },
+            "example": 1
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "integer" },
+            "example": 10
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string" },
+            "example": "elektronik"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": { "type": "string", "example": "Categories retrieved successfully" },
+                    "data": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/Category" }
+                    },
+                    "pagination": { "$ref": "#/components/schemas/Pagination" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "500": { "$ref": "#/components/responses/InternalServerError" }
+        }
+      },
+      "post": {
+        "tags": ["Categories"],
+        "summary": "Create a new category",
+        "description": "Create a new product category with the provided details.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateCategoryRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Category created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": { "type": "string", "example": "Category created successfully" },
+                    "data": { "$ref": "#/components/schemas/Category" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "500": { "$ref": "#/components/responses/InternalServerError" }
+        }
+      }
+    },
+    "/categories/{id}": {
+      "patch": {
+        "tags": ["Categories"],
+        "summary": "Update an existing category",
+        "description": "Update the details of an existing product category.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 1
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCategoryRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Category updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Category updated successfully"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Category"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Categories"],
+        "summary": "Delete a category",
+        "description": "Delete an existing product category by its ID.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" },
+            "example": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Category deleted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": { "type": "string", "example": "Category deleted successfully" },
+                    "data": { "type": "string", "example": "" }
+                  }
+                }
+              }
+            }
+          },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "500": { "$ref": "#/components/responses/InternalServerError" }
+        }
+      }
+    },
+    "/stockopname/sessions": {
+      "post": {
+        "tags": ["Stock Opname Session"],
+        "summary": "Create a new stock opname session",
+        "description": "Create a new stock opname session with the provided details.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSessionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Stock opname session created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Stock opname session created successfully"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Session"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      },
+      "get": {
+        "tags": ["Stock Opname Session"],
+        "summary": "Get all stock opname sessions",
+        "description": "Retrieve a list of all stock opname sessions.",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "example": 1
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "example": 10
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "SO-14-08-2026-01"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Stock opname sessions retrieved successfully"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Session"
+                      }
+                    },
+                    "pagination": {
+                      "type": "object",
+                      "properties": {
+                        "page": {
+                          "type": "integer",
+                          "example": 1
+                        },
+                        "limit": {
+                          "type": "integer",
+                          "example": 10
+                        },
+                        "total_pages": {
+                          "type": "integer",
+                          "example": 5
+                        },
+                        "total_items": {
+                          "type": "integer",
+                          "example": 50
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/stockopname/sessions/{id}": {
+      "get": {
+        "tags": ["Stock Opname Session"],
+        "summary": "Get a specific stock opname session",
+        "description": "Retrieve details of a specific stock opname session by its ID.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Stock opname session retrieved successfully"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Session"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      },
+      "patch": {
+        "tags": ["Stock Opname Session"],
+        "summary": "Update a stock opname session",
+        "description": "Update the details of an existing stock opname session.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 1
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSessionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Stock opname session updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Stock opname session updated successfully"
+                    },
+                    "data": {
+                      "type": "string",
+                      "example": ""
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/stockopname/sessions/{id}/pdf": {
+      "get": {
+        "tags": ["Stock Opname Session"],
+        "summary": "Generate a stock opname session PDF report",
+        "description": "Generate an inline PDF report containing session details, coordinators, and stock opname results.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" },
+            "example": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "PDF report generated successfully",
+            "content": { "application/pdf": { "schema": { "type": "string", "format": "binary" } } }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "500": { "$ref": "#/components/responses/InternalServerError" }
+        }
+      }
+    },
+    "/stockopname/sessions/{id}/excel": {
+      "get": {
+        "tags": ["Stock Opname Session"],
+        "summary": "Generate a stock opname session Excel report",
+        "description": "Generate a downloadable Excel report containing stock opname results with product prices, rack, inspector, coordinator, session code, and update timestamp.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" },
+            "example": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Excel report generated successfully",
+            "content": { "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": { "schema": { "type": "string", "format": "binary" } } }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "500": { "$ref": "#/components/responses/InternalServerError" }
+        }
+      }
+    },
+    "/stockopname/sessions/{id}/dbf": {
+      "get": {
+        "tags": ["Stock Opname Session"],
+        "summary": "Generate a stock opname session DBF report",
+        "description": "Generate a downloadable dBASE III compatible DBF report containing stock opname results with product prices, rack, inspector, coordinator, session code, and update timestamp.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" },
+            "example": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "DBF report generated successfully",
+            "content": { "application/x-dbf": { "schema": { "type": "string", "format": "binary" } } }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "500": { "$ref": "#/components/responses/InternalServerError" }
+        }
+      }
+    },
+    "/stockopname/coordinators": {
+      "get": {
+        "tags": ["Stock Opname Coordinator"],
+        "summary": "Get coordinators for a stock opname session",
+        "description": "Retrieve a list of coordinators",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Coordinators retrieved successfully"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Coordinator"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/stockopname/coordinators/{id}/pdf": {
+      "get": {
+        "tags": ["Stock Opname Coordinator"],
+        "summary": "Generate a coordinator PDF report",
+        "description": "Generate an inline PDF report containing coordinator details, inspectors, and stock opname results.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" },
+            "example": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "PDF report generated successfully",
+            "content": { "application/pdf": { "schema": { "type": "string", "format": "binary" } } }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "500": { "$ref": "#/components/responses/InternalServerError" }
+        }
+      }
+    },
+    "/stockopname/coordinators/{id}": {
+      "get": {
+        "tags": ["Stock Opname Coordinator"],
+        "summary": "Get a specific coordinator for a stock opname session",
+        "description": "Retrieve details of a specific coordinator by its ID.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Coordinator retrieved successfully"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Coordinator"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      },
+      "patch": {
+        "tags": ["Stock Opname Coordinator"],
+        "summary": "Update a coordinator for a stock opname session",
+        "description": "Update the details of an existing coordinator.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 1
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCoordinatorRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Coordinator updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Coordinator updated successfully"
+                    },
+                    "data": {
+                      "type": "string",
+                      "example": ""
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/stockopname/inspectors": {
+      "get": {
+        "tags": ["Stock Opname Inspector"],
+        "summary": "Get all inspectors for a stock opname session",
+        "description": "Retrieve a list of all inspectors for a specific stock opname session.",
+        "parameters": [
+          {
+            "name": "coordinatorId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of inspectors retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Inspectors retrieved successfully"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Inspector"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      },
+      "post": {
+        "tags": ["Stock Opname Inspector"],
+        "summary": "Create a new inspector for a stock opname session",
+        "description": "Create a new inspector for a specific stock opname session and coordinator.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "sesi_code": {
+                    "type": "string",
+                    "example": "SO-2026-06-03-01"
+                  },
+                  "coor_code": {
+                    "type": "string",
+                    "example": "KOOR1"
+                  },
+                  "inspector_code": {
+                    "type": "string",
+                    "example": "INSPECTOR1"
+                  },
+                  "rak": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "example": ["RAK1", "RAK2"]
+                  }
+                },
+                "required": ["sesi_code", "coor_code", "inspector_code", "rak"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Inspector created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Successfully created the inspector for the stock opname session."
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "inspector_id": {
+                          "type": "integer",
+                          "example": 132
+                        },
+                        "rak": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "integer",
+                                "example": 1
+                              },
+                              "name": {
+                                "type": "string",
+                                "example": "RAK1"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/stockopname/racks": {
+      "get": {
+        "tags": ["Stock Opname Racks"],
+        "summary": "Get all racks for a specific session, coordinator, or inspector",
+        "description": "Retrieve a list of all racks for a specific stock opname type.",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 1
+          },
+          {
+            "name": "coordinatorId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 1
+          },
+          {
+            "name": "inspectorId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of racks retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Rack progress retrieved successfully"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Rack"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      },
+      "post": {
+        "tags": ["Stock Opname Racks"],
+        "summary": "Create a rack for a stock opname session by inspector id",
+        "description": "Create a new rack for a stock opname session associated with a specific inspector.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "inspector_id": {
+                    "type": "integer",
+                    "example": 132
+                  },
+                  "rak_name": {
+                    "type": "string",
+                    "example": "RAK1"
+                  }
+                },
+                "required": ["inspector_id", "rak_name"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Rack created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Rack created successfully."
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "integer",
+                          "example": 1
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/stockopname/racks/progress": {
+      "get": {
+        "tags": ["Stock Opname Racks"],
+        "summary": "Get progress of racks for a specific session or coordinator",
+        "description": "Retrieve the progress of racks for a specific stock opname session or coordinator.",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 1
+          },
+          {
+            "name": "coordinatorId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Rack progress retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Rack progress retrieved successfully"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "rackAssigned": {
+                          "type": "integer",
+                          "example": 10
+                        },
+                        "rackCompleted": {
+                          "type": "integer",
+                          "example": 5
+                        },
+                        "total_items": {
+                          "type": "integer",
+                          "example": 100
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/stockopname/results": {
+      "get": {
+        "tags": ["Stock Opname Result Items"],
+        "summary": "Get all stock opname result items for a specific session or coordinator",
+        "description": "Retrieve a list of all stock opname result items.",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 1
+          },
+          {
+            "name": "coordinatorId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 1
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 1
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 10
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "Product A"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of stock opname result items retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Stock opname result items retrieved successfully"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/StockOpnameResultItem"
+                      }
+                    },
+                    "pagination": {
+                      "type": "object",
+                      "properties": {
+                        "page": {
+                          "type": "integer",
+                          "example": 1
+                        },
+                        "limit": {
+                          "type": "integer",
+                          "example": 10
+                        },
+                        "totalItems": {
+                          "type": "integer",
+                          "example": 100
+                        },
+                        "totalPages": {
+                          "type": "integer",
+                          "example": 10
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      },
+      "post": {
+        "tags": ["Stock Opname Result Items"],
+        "summary": "Create a new stock opname result item",
+        "description": "Create a new stock opname result item with the provided details.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateStockOpnameResultItemRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Stock opname result item created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Stock opname result item created successfully"
+                    },
+                    "data": {
+                      "type":"string",
+                      "example": ""
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/stockopname/results/{id}": {
+      "get": {
+        "tags": ["Stock Opname Result Items"],
+        "summary": "Get a specific stock opname result item by its ID",
+        "description": "Retrieve details of a specific stock opname result item by its ID.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stock opname result item retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Stock opname result item retrieved successfully"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/StockOpnameResultItem"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Stock Opname Result Items"],
+        "summary": "Delete a specific stock opname result item by its ID",
+        "description": "Delete a specific stock opname result item by its ID.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stock opname result item deleted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Stock opname result item deleted successfully"
+                    },
+                    "data": {
+                      "type": "string",
+                      "example": ""
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      },
+      "patch": {
+        "tags": ["Stock Opname Result Items"],
+        "summary": "Update a specific stock opname result item by its ID",
+        "description": "Update a quantity of a specific stock opname result item by its ID.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 1
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateStockOpnameResultItemRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Stock opname result item updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Stock opname result item updated successfully"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/StockOpnameResultItem"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/stockopname/results/racks":{
+      "post": {
+        "tags": ["Stock Opname Result Items"],
+        "summary": "Create SO products by racks for a stock opname session",
+        "description": "Post the products associated with specific racks for a given stock opname session.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "rak_id": {
+                    "type": "integer",
+                    "example": 12323
+                  },
+                  "so_products": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "product_id": {
+                          "type": "integer",
+                          "example": 1
+                        },
+                        "quantity": {
+                          "type": "integer",
+                          "example": 10
+                        }
+                      },
+                      "required": ["product_id", "quantity"]
+                    }
+                  }
+                },
+                "required": ["rak_id", "so_products"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Racks posted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Racks posted successfully."
+                    },
+                    "data": {
+                      "type": "string",
+                      "example": ""
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Product": {
+        "type": "object",
+        "required": [
+          "id",
+          "barcode",
+          "name",
+          "buy_price",
+          "sell_price",
+          "date_created",
+          "date_updated",
+          "category_name",
+          "department_code"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "barcode": {
+            "type": "string",
+            "example": "1234567890123"
+          },
+          "name": {
+            "type": "string",
+            "example": "Product A"
+          },
+          "buy_price": {
+            "type": "number",
+            "format": "double",
+            "example": 9.99
+          },
+          "sell_price": {
+            "type": "number",
+            "format": "double",
+            "example": 19.99
+          },
+          "date_created": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2023-01-01T12:00:00Z"
+          },
+          "date_updated": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2023-01-02T12:00:00Z"
+          },
+          "category_name": {
+            "type": "string",
+            "example": "Diary"
+          },
+          "department_code": {
+            "type": "string",
+            "example": "NSTL"
+          }
+        }
+      },
+      "CreateProductRequest": {
+        "type": "object",
+        "required": [
+          "barcode",
+          "name",
+          "buy_price",
+          "sell_price",
+          "category_name",
+          "department_code"
+        ],
+        "properties": {
+          "barcode": {
+            "type": "string",
+            "example": "1234567890123"
+          },
+          "name": {
+            "type": "string",
+            "example": "Product A"
+          },
+          "buy_price": {
+            "type": "number",
+            "format": "double",
+            "example": 9.99
+          },
+          "sell_price": {
+            "type": "number",
+            "format": "double",
+            "example": 19.99
+          },
+          "category_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "department_id": {
+            "type": "integer",
+            "example": 1
+          }
+        }
+      },
+      "UpdateProductRequest": {
+        "type": "object",
+        "properties": {
+          "barcode": {
+            "type": "string",
+            "example": "1234567890123"
+          },
+          "name": {
+            "type": "string",
+            "example": "Product A"
+          },
+          "buy_price": {
+            "type": "number",
+            "format": "double",
+            "example": 9.99
+          },
+          "sell_price": {
+            "type": "number",
+            "format": "double",
+            "example": 19.99
+          },
+          "category_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "department_id": {
+            "type": "integer",
+            "example": 1
+          }
+        }
+      },
+      "DeletedProduct": {
+        "type": "object",
+        "required": ["id"],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          }
+        }
+      },
+      "Department": {
+        "type": "object",
+        "required": ["id", "code", "name", "description"],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "code": {
+            "type": "string",
+            "example": "NSTL"
+          },
+          "name": {
+            "type": "string",
+            "example": "Nestle"
+          },
+          "description": {
+            "type": "string",
+            "example": "Department for Nestle products"
+          }
+        }
+      },
+      "CreateDepartmentRequest": {
+        "type": "object",
+        "required": ["code", "name", "description"],
+        "properties": {
+          "code": {
+            "type": "string",
+            "example": "NSTL"
+          },
+          "name": {
+            "type": "string",
+            "example": "Nestle"
+          },
+          "description": {
+            "type": "string",
+            "example": "Department for Nestle products"
+          }
+        }
+      },
+      "UpdateDepartmentRequest": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "example": "NSTL"
+          },
+          "name": {
+            "type": "string",
+            "example": "Nestle"
+          },
+          "description": {
+            "type": "string",
+            "example": "Department for Nestle products"
+          }
+        }
+      },
+      "Category": {
+        "type": "object",
+        "required": ["id", "name", "description"],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "name": {
+            "type": "string",
+            "example": "Diary"
+          },
+          "description": {
+            "type": "string",
+            "example": "Category for diary products"
+          }
+        }
+      },
+      "CreateCategoryRequest": {
+        "type": "object",
+        "required": ["name", "description"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Diary"
+          },
+          "description": {
+            "type": "string",
+            "example": "Category for diary products"
+          }
+        }
+      },
+      "UpdateCategoryRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Diary"
+          },
+          "description": {
+            "type": "string",
+            "example": "Category for diary products"
+          }
+        }
+      },
+      "Session": {
+        "type": "object",
+        "required": [
+          "id",
+          "location",
+          "code",
+          "status",
+          "startedat",
+          "endedat"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "code": {
+            "type": "string",
+            "example": "SO-14-08-2026-01"
+          },
+          "location": {
+            "type": "string",
+            "example": "Location 1"
+          },
+          "status": {
+            "type": "string",
+            "example": "IN_PROGRESS"
+          },
+          "startedat": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-08-14T10:00:00Z"
+          },
+          "endedat": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-08-14T10:00:00Z"
+          }
+        }
+      },
+      "CreateSessionRequest": {
+        "type": "object",
+        "required": ["sesi_code", "location", "coor_code"],
+        "properties": {
+          "sesi_code": {
+            "type": "string",
+            "example": "SO-14-08-2026-01"
+          },
+          "location": {
+            "type": "string",
+            "example": "Location 1"
+          },
+          "coor_code": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "example": ["COOR1", "COOR2", "COOR3"]
+          }
+        }
+      },
+      "Coordinator": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "code": {
+            "type": "string",
+            "example": "COOR1"
+          },
+          "inspector": {
+            "type": "integer",
+            "example": 8
+          },
+          "rackAssigned": {
+            "type": "integer",
+            "example": 5
+          },
+          "rackCompleted": {
+            "type": "integer",
+            "example": 3
+          },
+          "status": {
+            "type": "string",
+            "example": "IN_PROGRESS"
+          }
+        }
+      },
+      "Inspector": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "code": {
+            "type": "string",
+            "example": "INSPECTOR1"
+          },
+          "rackAssigned": {
+            "type": "integer",
+            "example": 5
+          },
+          "rackCompleted": {
+            "type": "integer",
+            "example": 3
+          },
+          "totalItems": {
+            "type": "integer",
+            "example": 100
+          }
+        }
+      },
+      "StockOpnameResultItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "barcode": {
+            "type": "string",
+            "example": "1234567890123"
+          },
+          "product_name": {
+            "type": "string",
+            "example": "Product A"
+          },
+          "quantity": {
+            "type": "integer",
+            "example": 10
+          },
+          "rak_name": {
+            "type": "string",
+            "example": "RAK-001"
+          },
+          "inspector_code": {
+            "type": "string",
+            "example": "INSPECTOR1"
+          },
+          "coor_code": {
+            "type": "string",
+            "example": "COOR1"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-08-14T10:00:00Z"
+          }
+        }
+      },
+      "UpdateStockOpnameResultItemRequest": {
+        "type": "object",
+        "required": ["quantity"],
+        "properties": {
+          "quantity": {
+            "type": "integer",
+            "example": 15000
+          }
+        }
+      },
+      "UpdateCoordinatorRequest": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "COMPLETED"
+          }
+        }
+      },
+      "UpdateSessionRequest": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "COMPLETED"
+          }
+        }
+      },
+      "Rack": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "name": {
+            "type": "string",
+            "example": "Rack A"
+          }
+        }
+      },
+      "CreateStockOpnameResultItemRequest": {
+        "type": "object",
+        "required": [
+          "quantity",
+          "rak_id",
+          "product_id"
+        ],
+        "properties": {
+          "quantity": {
+            "type": "integer",
+            "example": 10
+          },
+          "rak_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "product_id": {
+            "type": "integer",
+            "example": 1
+          }
+        }
+      },
+      "InternalServerErrorResponse": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "example": "Internal server error"
+          },
+          "data": {
+            "type": "string",
+            "example": ""
+          }
+        }
+      },
+      "Pagination": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "integer",
+            "example": 1
+          },
+          "limit": {
+            "type": "integer",
+            "example": 10
+          },
+          "total_pages": {
+            "type": "integer",
+            "example": 5
+          },
+          "total_items": {
+            "type": "integer",
+            "example": 50
+          }
+        }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "Bad request",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/InternalServerErrorResponse"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "Resource not found",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "message": {
+                  "type": "string",
+                  "example": "Category with ID 999 not found"
+                },
+                "data": {
+                  "type": "string",
+                  "example": ""
+                }
+              }
+            }
+          }
+        }
+      },
+      "Conflict": {
+        "description": "Resource conflict",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "message": {
+                  "type": "string",
+                  "example": "Category conflict: Category name already exists"
+                },
+                "data": {
+                  "type": "string",
+                  "example": ""
+                }
+              }
+            }
+          }
+        }
+      },
+      "InternalServerError": {
+        "description": "Internal server error",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/InternalServerErrorResponse"
+            }
+          }
+        }
+      }
+    },
+    "parameters": {},
+    "securitySchemes": {}
+  }
+}
