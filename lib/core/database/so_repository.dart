@@ -13,20 +13,27 @@ class SoRepository {
   final AppDatabase _db;
 
   Future<Map<String, dynamic>?> findByRakAndProduct(
-      int rakId, int productId) async {
+    int rakId,
+    int productId,
+  ) async {
     final db = await _db.db;
-    final rows = await db.query('so_items',
-        where: 'rak_id = ? AND product_id = ?',
-        whereArgs: [rakId, productId],
-        limit: 1);
+    final rows = await db.query(
+      'so_items',
+      where: 'rak_id = ? AND product_id = ?',
+      whereArgs: [rakId, productId],
+      limit: 1,
+    );
     return rows.isEmpty ? null : rows.first;
   }
 
   /// mode: 'add' (tambah) atau 'replace' (ganti). Kembalikan qty akhir.
+  /// [plu] = business key backend; [barcode] = kode yang benar-benar dipindai
+  /// (bisa barcode sekunder produk).
   Future<int> upsertScan({
     required int rakId,
     required String rakName,
     required int productId,
+    required String plu,
     required String barcode,
     required String productName,
     required int quantity,
@@ -40,6 +47,7 @@ class SoRepository {
         'rak_id': rakId,
         'rak_name': rakName,
         'product_id': productId,
+        'plu': plu,
         'barcode': barcode,
         'product_name': productName,
         'quantity': quantity,
@@ -55,6 +63,8 @@ class SoRepository {
       'so_items',
       {
         'quantity': nextQty,
+        'barcode': barcode,
+        'plu': plu,
         // Edit lokal membuat item perlu upload ulang.
         'status': SoStatus.pending,
         'updated_locally': now,
@@ -67,21 +77,28 @@ class SoRepository {
 
   Future<List<Map<String, dynamic>>> listByRak(int rakId) async {
     final db = await _db.db;
-    return db.query('so_items',
-        where: 'rak_id = ?', whereArgs: [rakId], orderBy: 'updated_locally DESC');
+    return db.query(
+      'so_items',
+      where: 'rak_id = ?',
+      whereArgs: [rakId],
+      orderBy: 'updated_locally DESC',
+    );
   }
 
   Future<List<Map<String, dynamic>>> pendingByRak(int rakId) async {
     final db = await _db.db;
-    return db.query('so_items',
-        where: 'rak_id = ? AND status IN (?, ?)',
-        whereArgs: [rakId, SoStatus.pending, SoStatus.failed]);
+    return db.query(
+      'so_items',
+      where: 'rak_id = ? AND status IN (?, ?)',
+      whereArgs: [rakId, SoStatus.pending, SoStatus.failed],
+    );
   }
 
   Future<int> countPending() async {
     final db = await _db.db;
     final rows = await db.rawQuery(
-        "SELECT COUNT(*) AS c FROM so_items WHERE status IN ('${SoStatus.pending}','${SoStatus.failed}')");
+      "SELECT COUNT(*) AS c FROM so_items WHERE status IN ('${SoStatus.pending}','${SoStatus.failed}')",
+    );
     return ((rows.first['c']) as num).toInt();
   }
 
@@ -116,17 +133,21 @@ class SoRepository {
   }
 
   List<SoUploadItem> toUploadItems(List<Map<String, dynamic>> rows) => rows
-      .map((r) => SoUploadItem(
-            productId: (r['product_id'] as num).toInt(),
-            rakId: (r['rak_id'] as num).toInt(),
-            quantity: (r['quantity'] as num).toInt(),
-          ))
+      .map(
+        (r) => SoUploadItem(
+          rakId: (r['rak_id'] as num).toInt(),
+          plu: (r['plu'] as String?) ?? '',
+          barcode: (r['barcode'] as String?) ?? '',
+          quantity: (r['quantity'] as num).toInt(),
+        ),
+      )
       .toList();
 
   /// Statistik satu rak untuk kartu daftar rak.
   Future<RakStats> statsByRak(int rakId) async {
     final db = await _db.db;
-    final rows = await db.rawQuery('''
+    final rows = await db.rawQuery(
+      '''
       SELECT
         COUNT(s.local_id) AS item_count,
         COALESCE(SUM(s.quantity), 0) AS total_qty,
@@ -135,7 +156,9 @@ class SoRepository {
       FROM so_items s
       LEFT JOIN products p ON p.product_id = s.product_id
       WHERE s.rak_id = ?
-    ''', [rakId]);
+    ''',
+      [rakId],
+    );
     final r = rows.first;
     return RakStats(
       itemCount: ((r['item_count']) as num).toInt(),

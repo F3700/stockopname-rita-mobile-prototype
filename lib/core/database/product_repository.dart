@@ -8,18 +8,20 @@ final productRepositoryProvider = Provider<ProductRepository>((ref) {
   return ProductRepository(ref.watch(databaseProvider));
 });
 
-/// Lookup barcode SELALU via indexed query, tidak pernah load 250k ke memori.
+/// Master produk lokal. Lookup barcode SELALU via indexed query (PK
+/// product_barcodes), tidak pernah load 250k ke memori.
+/// Satu produk bisa punya banyak barcode — semua bisa di-scan offline.
 class ProductRepository {
   ProductRepository(this._db);
   final AppDatabase _db;
 
   Future<Map<String, dynamic>?> findByBarcode(String barcode) async {
     final db = await _db.db;
-    final rows = await db.query(
-      'products',
-      where: 'barcode = ?',
-      whereArgs: [barcode],
-      limit: 1,
+    final rows = await db.rawQuery(
+      'SELECT p.* FROM product_barcodes b '
+      'JOIN products p ON p.product_id = b.product_id '
+      'WHERE b.barcode = ? LIMIT 1',
+      [barcode],
     );
     return rows.isEmpty ? null : rows.first;
   }
@@ -34,16 +36,34 @@ class ProductRepository {
         item.toDbMap(),
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
+      // Barcode server menggantikan seluruh set lama produk ini.
+      batch.delete(
+        'product_barcodes',
+        where: 'product_id = ?',
+        whereArgs: [item.id],
+      );
+      for (final code in item.barcodes) {
+        batch.insert('product_barcodes', {
+          'barcode': code,
+          'product_id': item.id,
+        }, conflictAlgorithm: ConflictAlgorithm.replace);
+      }
     }
     await batch.commit(noResult: true);
   }
 
-  Future<void> deleteByIds(List<int> ids) async {
-    if (ids.isEmpty) return;
+  /// Tombstone master dari /deleted/products — kunci kontrak = PLU.
+  Future<void> deleteByPlu(List<String> plus) async {
+    if (plus.isEmpty) return;
     final db = await _db.db;
     final batch = db.batch();
-    for (final id in ids) {
-      batch.delete('products', where: 'product_id = ?', whereArgs: [id]);
+    for (final plu in plus) {
+      batch.delete(
+        'product_barcodes',
+        where: 'product_id IN (SELECT product_id FROM products WHERE plu = ?)',
+        whereArgs: [plu],
+      );
+      batch.delete('products', where: 'plu = ?', whereArgs: [plu]);
     }
     await batch.commit(noResult: true);
   }
@@ -54,14 +74,21 @@ class ProductRepository {
     return ((rows.first['c']) as num).toInt();
   }
 
-  Future<List<Map<String, dynamic>>> searchByName(String keyword,
-      {int limit = 20}) async {
+  /// Pencarian lokal dengan cakupan sama seperti server:
+  /// nama / PLU / kode department / semua barcode.
+  Future<List<Map<String, dynamic>>> searchByName(
+    String keyword, {
+    int limit = 20,
+  }) async {
     final db = await _db.db;
-    return db.query(
-      'products',
-      where: 'name LIKE ?',
-      whereArgs: ['%$keyword%'],
-      limit: limit,
+    final like = '%$keyword%';
+    return db.rawQuery(
+      'SELECT p.* FROM products p '
+      'WHERE p.name LIKE ? OR p.plu LIKE ? OR p.department_code LIKE ? '
+      'OR EXISTS (SELECT 1 FROM product_barcodes b '
+      'WHERE b.product_id = p.product_id AND b.barcode LIKE ?) '
+      'LIMIT ?',
+      [like, like, like, like, limit],
     );
   }
 }
