@@ -1,145 +1,162 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/connectivity/connectivity_providers.dart';
 import '../../core/database/session_repository.dart';
 import '../../core/database/sync_meta_repository.dart';
+import '../../core/ui/design_system/rita_band.dart';
+import '../../core/ui/design_system/rita_buttons.dart';
+import '../../core/ui/design_system/rita_card.dart';
+import '../../core/ui/design_system/rita_pill.dart';
+import '../../core/ui/design_system/rita_states.dart';
+import '../../core/ui/design_system/rita_tokens.dart';
 import '../../core/ui/rita_dialog.dart';
-import '../../core/ui/rita_theme.dart';
 import '../join_qr/scan_coordinator_screen.dart';
 import '../racks/rack_list_screen.dart';
 import '../setup/session_form_screen.dart';
 import '../setup/setup_service.dart';
 
-/// Home ala Niko: mulai sesi (kode saja) + riwayat sesi lokal.
+/// Home v5: band compact + CTA ganda + riwayat sesi lokal.
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
+
+  void _openSessionForm(BuildContext context) {
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const SessionFormScreen()));
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final sessions = ref.watch(sessionListProvider);
     final lastSync = ref.watch(lastSyncProvider);
+    final online = ref.watch(isOnlineProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: RitaColors.red,
-        foregroundColor: Colors.white,
-        title: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Stock Scanner',
-                      style: TextStyle(
-                          fontWeight: FontWeight.bold, fontSize: 20)),
-                  lastSync.when(
-                    data: (t) => Text(
-                      t == null
-                          ? 'Belum pernah sinkronisasi'
-                          : 'last Updated : ${t.toLocal().toString().substring(0, 19)}',
-                      style:
-                          const TextStyle(fontSize: 12, color: Colors.white),
-                    ),
-                    loading: () => const Text('',
-                        style: TextStyle(fontSize: 12, color: Colors.white)),
-                    error: (_, __) => const SizedBox.shrink(),
-                  ),
-                ],
-              ),
-            ),
-            const CircleAvatar(
-              backgroundColor: Colors.white,
-              child: ClipOval(
-                child: Image(
-                  image: AssetImage('assets/images/logoritapasaraya.png'),
-                  fit: BoxFit.cover,
-                  width: 36,
-                  height: 36,
-                ),
-              ),
-            ),
-          ],
-        ),
+      appBar: RitaBand(
+        title: 'Stock Scanner',
+        subtitle: _syncSubtitle(lastSync, online),
+        subtitleDot: online ? RitaPalette.success : RitaPalette.warning,
+        trailing: const _LogoAvatar(),
       ),
       body: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.all(17),
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white,
-                foregroundColor: RitaColors.red,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10)),
-                padding: const EdgeInsets.symmetric(vertical: 20),
-              ),
-              onPressed: () {
-                Navigator.of(context).push(MaterialPageRoute(
-                    builder: (_) => const SessionFormScreen()));
-              },
-              child: const Center(
-                child: Column(
-                  children: [
-                    Icon(Icons.document_scanner_outlined,
-                        size: 72, color: RitaColors.red),
-                    SizedBox(height: 8),
-                    Text('Mulai stock opname',
-                        style: TextStyle(
-                            fontWeight: FontWeight.bold, fontSize: 20)),
-                  ],
+            padding: const EdgeInsets.fromLTRB(
+              RitaSpace.screen,
+              RitaSpace.md,
+              RitaSpace.screen,
+              0,
+            ),
+            child: Column(
+              children: [
+                RitaPrimaryButton(
+                  label: 'MULAI STOCK OPNAME',
+                  onPressed: () => _openSessionForm(context),
                 ),
-              ),
+                const SizedBox(height: RitaSpace.sm),
+                RitaSecondaryButton(
+                  label: 'SCAN QR COORDINATOR',
+                  icon: Icons.qr_code_scanner,
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const ScanCoordinatorScreen(),
+                      ),
+                    );
+                  },
+                ),
+              ],
             ),
           ),
+          const SizedBox(height: RitaSpace.lg),
           Padding(
-            padding:
-                const EdgeInsets.only(left: 17, right: 17, bottom: 17),
-            child: OutlinedButton.icon(
-              style: OutlinedButton.styleFrom(
-                foregroundColor: RitaColors.red,
-                side: const BorderSide(color: RitaColors.red),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10)),
-                padding: const EdgeInsets.symmetric(vertical: 14),
-              ),
-              onPressed: () {
-                Navigator.of(context).push(MaterialPageRoute(
-                    builder: (_) => const ScanCoordinatorScreen()));
-              },
-              icon: const Icon(Icons.qr_code_scanner),
-              label: const Text('Scan QR Coordinator',
-                  style: TextStyle(
-                      fontWeight: FontWeight.bold, fontSize: 16)),
+            padding: const EdgeInsets.symmetric(horizontal: RitaSpace.screen),
+            child: Row(
+              children: [
+                Text('RIWAYAT SESI', style: RitaType.sectionLabel),
+                const Spacer(),
+                sessions.maybeWhen(
+                  data: (rows) =>
+                      Text('${rows.length}', style: RitaType.caption),
+                  orElse: () => const SizedBox.shrink(),
+                ),
+              ],
             ),
           ),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 17),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text('Riwayat Sesi',
-                  style: TextStyle(color: RitaColors.grey)),
-            ),
-          ),
+          const SizedBox(height: RitaSpace.xs),
           Expanded(
             child: sessions.when(
               data: (rows) {
                 if (rows.isEmpty) {
-                  return const Center(
-                      child: Text('Belum ada sesi. Mulai stock opname dulu.',
-                          style: TextStyle(color: RitaColors.grey)));
+                  return ListView(
+                    padding: const EdgeInsets.all(RitaSpace.screen),
+                    children: [
+                      RitaEmptyState(
+                        icon: Icons.history,
+                        title: 'Belum ada sesi',
+                        message:
+                            'Mulai stock opname atau pindai QR koordinator untuk memulai.',
+                        actionLabel: 'Mulai stock opname',
+                        onAction: () => _openSessionForm(context),
+                      ),
+                    ],
+                  );
                 }
-                return ListView.builder(
-                  padding: const EdgeInsets.all(17),
+                return ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(
+                    RitaSpace.screen,
+                    RitaSpace.xs,
+                    RitaSpace.screen,
+                    RitaSpace.screen,
+                  ),
                   itemCount: rows.length,
+                  separatorBuilder: (_, __) =>
+                      const SizedBox(height: RitaSpace.sm),
                   itemBuilder: (_, i) => _SessionCard(row: rows[i]),
                 );
               },
-              loading: () =>
-                  const Center(child: CircularProgressIndicator()),
-              error: (e, _) => Center(child: Text('Gagal memuat: $e')),
+              loading: () => const Padding(
+                padding: EdgeInsets.all(RitaSpace.screen),
+                child: RitaListSkeleton(),
+              ),
+              error: (e, _) =>
+                  Center(child: Text('Gagal memuat: $e', style: RitaType.meta)),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  static String _syncSubtitle(AsyncValue<DateTime?> lastSync, bool online) {
+    if (!online) return 'Offline - data lokal';
+    return lastSync.maybeWhen(
+      data: (t) => t == null
+          ? 'Belum pernah sinkronisasi'
+          : 'Tersinkron ${t.toLocal().toString().substring(0, 16)}',
+      orElse: () => 'Memeriksa sinkronisasi...',
+    );
+  }
+}
+
+/// Avatar 40px di slot kanan band.
+class _LogoAvatar extends StatelessWidget {
+  const _LogoAvatar();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 40,
+      height: 40,
+      decoration: const BoxDecoration(
+        color: RitaPalette.white,
+        shape: BoxShape.circle,
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: const Image(
+        image: AssetImage('assets/images/logoritapasaraya.png'),
+        fit: BoxFit.cover,
       ),
     );
   }
@@ -152,89 +169,58 @@ class _SessionCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final done = row['status'] == SessionRepository.statusDone;
-    final created =
-        (row['created_at'] as String?)?.substring(0, 19) ?? '-';
+    final created = (row['created_at'] as String?)?.substring(0, 19) ?? '-';
     final finished = row['finished_at'] as String?;
     final coor = (row['coor_code'] as String?)?.trim() ?? '';
     final inspector = (row['inspector_code'] as String?)?.trim() ?? '';
-    return Card(
-      shape: RoundedRectangleBorder(
-        side: const BorderSide(color: Colors.black),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: () => _enter(context, ref),
-        child: Padding(
-          padding:
-              const EdgeInsets.only(top: 7, left: 17, bottom: 10, right: 10),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+    final viaQr = row['join_via'] == 'qr';
+
+    return RitaCard(
+      onTap: () => _enter(context, ref),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('${row['sesi_code']}', style: RitaType.title),
+                if (coor.isNotEmpty || inspector.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    'Koor: ${coor.isEmpty ? '-' : coor} • Insp: ${inspector.isEmpty ? '-' : inspector}',
+                    style: RitaType.meta,
+                  ),
+                ],
+                const SizedBox(height: RitaSpace.xs + 2),
+                Row(
                   children: [
-                    Text('${row['sesi_code']}',
-                        style: const TextStyle(
-                            color: Colors.black, fontSize: 16)),
-                    if (coor.isNotEmpty || inspector.isNotEmpty) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        'Koor: ${coor.isEmpty ? '-' : coor} • Insp: ${inspector.isEmpty ? '-' : inspector}',
-                        style: const TextStyle(
-                            color: RitaColors.grey, fontSize: 12),
-                      ),
+                    done
+                        ? RitaPill.status(RitaStatus.selesai)
+                        : RitaPill.status(RitaStatus.berjalan),
+                    if (viaQr) ...[
+                      const SizedBox(width: RitaSpace.xs),
+                      RitaPill.tag('via QR'),
                     ],
-                    if (row['join_via'] == 'qr') ...[
-                      const SizedBox(height: 2),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            vertical: 1, horizontal: 8),
-                        decoration: BoxDecoration(
-                          color: RitaColors.red.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: const Text('via QR',
-                            style: TextStyle(
-                                color: RitaColors.red, fontSize: 12)),
-                      ),
-                    ],
-                    const SizedBox(height: 4),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          vertical: 1, horizontal: 8),
-                      decoration: BoxDecoration(
-                        color: done ? RitaColors.red : Colors.white,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: RitaColors.red),
-                      ),
-                      child: Text(
-                        done ? 'Selesai' : 'Belum Selesai',
-                        style: TextStyle(
-                            color: done ? Colors.white : RitaColors.red,
-                            fontSize: 14),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      done && finished != null
-                          ? finished.substring(0, 19)
-                          : created,
-                      style: const TextStyle(
-                          color: RitaColors.grey, fontSize: 12),
-                    ),
                   ],
                 ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.delete,
-                    color: RitaColors.red, size: 30),
-                onPressed: () => _confirmDelete(context, ref),
-              ),
-            ],
+                const SizedBox(height: RitaSpace.xs + 2),
+                Text(
+                  done && finished != null
+                      ? finished.substring(0, 19)
+                      : created,
+                  style: RitaType.captionHint,
+                ),
+              ],
+            ),
           ),
-        ),
+          RitaIconButton(
+            icon: Icons.delete_outline,
+            color: RitaPalette.primary,
+            tooltip: 'Hapus riwayat',
+            onPressed: () => _confirmDelete(context, ref),
+          ),
+        ],
       ),
     );
   }
@@ -248,21 +234,23 @@ class _SessionCard extends ConsumerWidget {
         .racksOfInspector(inspectorId);
     // currentRak hanya penanda — layar rak/scan bawa rakId sendiri.
     final first = racks.isEmpty ? null : racks.first;
-    ref.read(activeSessionProvider.notifier).set(ActiveSession(
-          dbId: (row['id'] as num).toInt(),
-          sesiCode: row['sesi_code'] as String,
-          coorCode: row['coor_code'] as String,
-          inspectorCode: row['inspector_code'] as String,
-          inspectorId: inspectorId,
-          currentRakId: first == null
-              ? 0
-              : (first['rak_id'] as num).toInt(),
-          currentRakName:
-              first == null ? '' : first['name'] as String,
-        ));
+    ref
+        .read(activeSessionProvider.notifier)
+        .set(
+          ActiveSession(
+            dbId: (row['id'] as num).toInt(),
+            sesiCode: row['sesi_code'] as String,
+            coorCode: row['coor_code'] as String,
+            inspectorCode: row['inspector_code'] as String,
+            inspectorId: inspectorId,
+            currentRakId: first == null ? 0 : (first['rak_id'] as num).toInt(),
+            currentRakName: first == null ? '' : first['name'] as String,
+          ),
+        );
     if (context.mounted) {
-      Navigator.of(context).push(MaterialPageRoute(
-          builder: (_) => const RackListScreen()));
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const RackListScreen()));
     }
   }
 

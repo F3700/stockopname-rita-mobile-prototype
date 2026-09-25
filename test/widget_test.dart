@@ -8,6 +8,7 @@ void main() {
     // provider async (SQLite tidak tersedia di widget test).
     await tester.pump(const Duration(milliseconds: 100));
     expect(find.text('Stock Scanner'), findsOneWidget);
-    expect(find.text('Mulai stock opname'), findsOneWidget);
+    expect(find.text('MULAI STOCK OPNAME'), findsOneWidget);
+    expect(find.text('SCAN QR COORDINATOR'), findsOneWidget);
   });
 }

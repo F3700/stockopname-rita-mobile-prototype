@@ -9,20 +9,22 @@ import '../../core/error/app_error.dart';
 import '../../core/logging/app_logger.dart';
 import '../../core/network/qr_join_api.dart';
 import '../../core/qr/coor_qr.dart';
+import '../../core/ui/design_system/rita_band.dart';
+import '../../core/ui/design_system/rita_feedback.dart';
+import '../../core/ui/design_system/rita_states.dart';
+import '../../core/ui/design_system/rita_tokens.dart';
+import '../../core/ui/design_system/rita_viewfinder.dart';
 import '../../core/ui/rita_dialog.dart';
-import '../../core/ui/rita_theme.dart';
 import '../catalog/sync_gate.dart';
 import 'join_qr_form_screen.dart';
 import 'join_qr_service.dart';
 
-/// Scan QR koordinator (`RITA-COOR-<id>`) + fallback tempel manual.
-/// Sukses scan + validasi → langsung ke [JoinQrFormScreen] yang menampilkan
-/// info coor/sesi di atas form. Non-IN_PROGRESS tertahan di sini dengan pesan.
-/// Flow manual tidak tersentuh.
+/// Scan QR koordinator (v5): viewfinder + validasi preview.
+/// Sukses scan + validasi → langsung ke [JoinQrFormScreen]. Non-IN_PROGRESS
+/// tertahan di sini dengan pesan. Flow manual tidak tersentuh.
 ///
-/// F1: controller kamera MILIK layar ini (dibuat di initState, dispose di
-/// dispose) — tidak share provider dengan layar scan rak, agar tidak ada
-/// state basi antar-layar yang bikin freeze/hang.
+/// Controller kamera MILIK layar ini (dibuat di initState, dispose di
+/// dispose) — tidak share provider dengan layar scan rak.
 class ScanCoordinatorScreen extends ConsumerStatefulWidget {
   const ScanCoordinatorScreen({super.key});
 
@@ -70,8 +72,7 @@ class _ScanCoordinatorScreenState extends ConsumerState<ScanCoordinatorScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // F4: jangan biarkan start/stop tanpa catch — dulu unawaited mentah
-    // berpotensi unhandled async error (crash) saat resume.
+    // Jangan biarkan start/stop tanpa catch — hindari unhandled async error.
     if (!mounted) return;
     if (state == AppLifecycleState.resumed) {
       if (cameraOn && navDepth == 0) {
@@ -88,7 +89,7 @@ class _ScanCoordinatorScreenState extends ConsumerState<ScanCoordinatorScreen>
     }
   }
 
-  /// F2: start dibatasi timeout — bila native tidak kembali (stall izin /
+  /// Start dibatasi timeout — bila native tidak kembali (stall izin /
   /// kamera), tampilkan pesan, bukan spinner abadi + tap mati.
   Future<void> _openCamera() async {
     if (cameraOn || starting) return;
@@ -105,18 +106,19 @@ class _ScanCoordinatorScreenState extends ConsumerState<ScanCoordinatorScreen>
         // Abaikan — hanya reset state lokal.
       }
       if (!mounted) return;
-      hideStackedSnackBar(context);
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text(
-              'Kamera tidak merespons. Ketuk area kamera untuk coba lagi.')));
+      showRitaToast(
+        context,
+        'Kamera tidak merespons. Ketuk area kamera untuk coba lagi.',
+      );
     } on MobileScannerException catch (e) {
       if (!mounted) return;
       final denied = e.errorCode == MobileScannerErrorCode.permissionDenied;
-      hideStackedSnackBar(context);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(denied
-              ? 'Izin kamera ditolak. Ketuk area kamera lagi untuk mengizinkan.'
-              : 'Kamera gagal dibuka: ${e.errorCode.name}')));
+      showRitaToast(
+        context,
+        denied
+            ? 'Izin kamera ditolak. Ketuk area kamera lagi untuk mengizinkan.'
+            : 'Kamera gagal dibuka: ${e.errorCode.name}',
+      );
     } finally {
       if (mounted) setState(() => starting = false);
     }
@@ -165,7 +167,7 @@ class _ScanCoordinatorScreenState extends ConsumerState<ScanCoordinatorScreen>
       error = null;
     });
     resolving = true;
-    // F3: matikan kamera SEBELUM request jaringan — deteksi ~1/detik
+    // Matikan kamera SEBELUM request jaringan — deteksi ~1/detik
     // tidak boleh memicu preview berulang + dialog bertumpuk.
     try {
       await cameraController.stop();
@@ -173,25 +175,30 @@ class _ScanCoordinatorScreenState extends ConsumerState<ScanCoordinatorScreen>
       appLogger.w('QR camera stop pra-preview gagal: $e');
     }
     if (mounted) setState(() => cameraOn = false);
-    // F4: request bisa dibatalkan saat layar ditutup.
+    // Request bisa dibatalkan saat layar ditutup.
     previewToken?.cancel('Preview baru dimulai.');
     final token = previewToken = CancelToken();
     try {
       final data = await ref
           .read(joinQrServiceProvider)
           .preview(coorId, cancelToken: token)
-          .timeout(_previewTimeout, onTimeout: () {
-        token.cancel('Preview timeout.');
-        throw TimeoutException(
-            'Preview timeout > ${_previewTimeout.inSeconds}s.');
-      });
+          .timeout(
+            _previewTimeout,
+            onTimeout: () {
+              token.cancel('Preview timeout.');
+              throw TimeoutException(
+                'Preview timeout > ${_previewTimeout.inSeconds}s.',
+              );
+            },
+          );
       if (!mounted) return;
       // Sukses validasi → langsung ke form input inspector + rak (info
       // coor/sesi tampil di atas form). Tertahan di sini bila non-aktif.
       if (!data.isJoinable) {
         final st = data.status.trim().isEmpty ? '-' : data.status.trim();
         setState(() {
-          error = 'Koordinator ${data.code} sedang $st. '
+          error =
+              'Koordinator ${data.code} sedang $st. '
               'Hanya koordinator IN_PROGRESS yang bisa di-join.';
           lastRetryable = false;
         });
@@ -200,22 +207,22 @@ class _ScanCoordinatorScreenState extends ConsumerState<ScanCoordinatorScreen>
       final qr = CoorQr.format(coorId);
       navDepth++;
       try {
-        await Navigator.of(context).push(MaterialPageRoute(
-            builder: (_) => JoinQrFormScreen(
-                  coordinatorQr: qr,
-                  preview: data,
-                )));
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => JoinQrFormScreen(coordinatorQr: qr, preview: data),
+          ),
+        );
       } finally {
         navDepth--;
       }
       return;
     } on DioException catch (e) {
-      // F4: layar ditutup saat request jalan = abaikan diam-diam.
-      // Cancel diteruskan mentah oleh QrJoinApi (bukan QrJoinFailure).
+      // Layar ditutup saat request jalan = abaikan diam-diam.
       if (e.type == DioExceptionType.cancel) return;
       if (!mounted) return;
       final data = e.response?.data;
-      final server = data is Map<String, dynamic> &&
+      final server =
+          data is Map<String, dynamic> &&
               data['message'] is String &&
               (data['message'] as String).isNotEmpty
           ? data['message'] as String
@@ -280,62 +287,43 @@ class _ScanCoordinatorScreenState extends ConsumerState<ScanCoordinatorScreen>
   @override
   Widget build(BuildContext context) {
     final lastError = error;
-    final isRetryable =
-        lastError != null && !busyPreview && lastRetryable;
+    final isRetryable = lastError != null && !busyPreview && lastRetryable;
     return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Column(
-          children: [
-            Text('Scan QR Coordinator',
-                style: TextStyle(
-                    color: Colors.black,
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold)),
-            Text('Arahkan kamera ke QR admin',
-                style: TextStyle(color: RitaColors.grey, fontSize: 12)),
-          ],
-        ),
+      appBar: RitaBand(
+        title: 'Scan QR Coordinator',
+        subtitle: 'Tempel ke QR admin',
+        onBack: () => Navigator.of(context).pop(),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(17),
+        padding: const EdgeInsets.all(RitaSpace.screen),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SizedBox(
-              width: double.infinity,
-              height: 260,
-              child: _CameraArea(
-                controller: cameraController,
-                cameraOn: cameraOn,
-                starting: starting,
-                onOpen: _openCamera,
-                onToggle: _closeCamera,
-                onCode: _onDetect,
-              ),
+            _CameraArea(
+              controller: cameraController,
+              cameraOn: cameraOn,
+              starting: starting,
+              onOpen: _openCamera,
+              onToggle: _closeCamera,
+              onCode: _onDetect,
             ),
             if (busyPreview) ...[
-              const SizedBox(height: 12),
-              const Center(child: CircularProgressIndicator()),
+              const SizedBox(height: RitaSpace.md),
+              const RitaLoading(label: 'Memvalidasi QR...'),
             ],
             if (lastError != null) ...[
-              const SizedBox(height: 12),
-              Text(lastError, style: const TextStyle(color: Colors.red)),
+              const SizedBox(height: RitaSpace.md),
+              RitaBanner(
+                kind: RitaBannerKind.error,
+                title: lastError,
+                actionLabel: isRetryable ? 'Coba lagi' : null,
+                onAction: isRetryable ? _retryPreview : null,
+              ),
               if (!cameraOn) ...[
-                const SizedBox(height: 4),
-                const Text('Ketuk area kamera untuk pindai ulang.',
-                    style:
-                        TextStyle(color: RitaColors.grey, fontSize: 12)),
-              ],
-              if (isRetryable) ...[
-                const SizedBox(height: 8),
-                OutlinedButton.icon(
-                  onPressed: busyPreview ? null : _retryPreview,
-                  icon: const Icon(Icons.refresh),
-                  label: const Text('Coba lagi'),
+                const SizedBox(height: RitaSpace.xs),
+                const Text(
+                  'Ketuk area kamera untuk pindai ulang.',
+                  style: RitaType.captionHint,
                 ),
               ],
             ],
@@ -346,10 +334,9 @@ class _ScanCoordinatorScreenState extends ConsumerState<ScanCoordinatorScreen>
   }
 }
 
-/// Area kamera: MobileScanner SELALU dibangun agar controller attach
-/// (start() gagal bila widget belum ada), placeholder menutupinya sampai
-/// user mengetuk. F2: error native ditampilkan sebagai pesan + cara coba
-/// lagi, bukan layar hitam yang dikira hang.
+/// Area kamera QR v5 (300px): viewfinder + kontrol scrim + errorBuilder.
+/// MobileScanner SELALU dibangun agar controller attach; placeholder
+/// menutupinya sampai user mengetuk.
 class _CameraArea extends StatelessWidget {
   const _CameraArea({
     required this.controller,
@@ -369,81 +356,114 @@ class _CameraArea extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ClipRRect(
-      borderRadius: BorderRadius.circular(10),
-      child: Stack(
-        children: [
-          MobileScanner(
-            controller: controller,
-            fit: BoxFit.cover,
-            errorBuilder: (context, error) => Container(
-              color: Colors.black,
-              padding: const EdgeInsets.all(17),
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.error_outline,
-                        size: 40, color: RitaColors.grey),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Kamera bermasalah: ${error.errorCode.name}\nKetuk area ini untuk coba lagi.',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                          color: RitaColors.grey, fontSize: 13),
-                    ),
-                  ],
+      borderRadius: BorderRadius.circular(RitaRadius.lg),
+      child: SizedBox(
+        height: 300,
+        width: double.infinity,
+        child: Stack(
+          children: [
+            MobileScanner(
+              controller: controller,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error) => Container(
+                color: Colors.black,
+                padding: const EdgeInsets.all(RitaSpace.md),
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.error_outline,
+                        size: 40,
+                        color: RitaPalette.hint,
+                      ),
+                      const SizedBox(height: RitaSpace.xs),
+                      Text(
+                        'Kamera bermasalah: ${error.errorCode.name}\nKetuk area ini untuk coba lagi.',
+                        textAlign: TextAlign.center,
+                        style: RitaType.captionHint,
+                      ),
+                    ],
+                  ),
                 ),
               ),
+              onDetect: (capture) {
+                final code = capture.barcodes.firstOrNull?.rawValue;
+                if (code != null && code.isNotEmpty) onCode(code);
+              },
             ),
-            onDetect: (capture) {
-              final code = capture.barcodes.firstOrNull?.rawValue;
-              if (code != null && code.isNotEmpty) onCode(code);
-            },
-          ),
-          if (cameraOn)
+            const Positioned.fill(child: RitaCornerMarks()),
+            if (cameraOn)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: RitaSpace.xs,
+                child: Center(
+                  child: TextButton.icon(
+                    style: TextButton.styleFrom(
+                      backgroundColor: Colors.black.withValues(alpha: 0.55),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: RitaSpace.sm,
+                      ),
+                    ),
+                    onPressed: onToggle,
+                    icon: const Icon(Icons.videocam_off, size: 20),
+                    label: const Text(
+                      'Matikan kamera',
+                      style: TextStyle(fontSize: 13),
+                    ),
+                  ),
+                ),
+              )
+            else
+              Positioned.fill(
+                child: InkWell(
+                  onTap: starting ? null : onOpen,
+                  child: Container(
+                    color: Colors.black,
+                    child: Center(
+                      child: starting
+                          ? const CircularProgressIndicator(
+                              color: RitaPalette.primary,
+                            )
+                          : const Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.qr_code_scanner,
+                                  size: 48,
+                                  color: RitaPalette.hint,
+                                ),
+                                SizedBox(height: RitaSpace.xs),
+                                Text(
+                                  'Ketuk untuk buka kamera',
+                                  style: TextStyle(
+                                    color: RitaPalette.hint,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ],
+                            ),
+                    ),
+                  ),
+                ),
+              ),
             Positioned(
               left: 0,
               right: 0,
-              bottom: 6,
+              bottom: 44,
               child: Center(
-                child: FilledButton.tonalIcon(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: Colors.black54,
-                    foregroundColor: Colors.white,
-                  ),
-                  onPressed: onToggle,
-                  icon: const Icon(Icons.videocam_off, size: 20),
-                  label: const Text('Matikan kamera'),
-                ),
-              ),
-            )
-          else
-            Positioned.fill(
-              child: InkWell(
-                onTap: starting ? null : onOpen,
-                child: Container(
-                  color: Colors.black,
-                  child: Center(
-                    child: starting
-                        ? const CircularProgressIndicator(
-                            color: RitaColors.red)
-                        : const Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.qr_code_scanner,
-                                  size: 48, color: RitaColors.grey),
-                              SizedBox(height: 8),
-                              Text('Ketuk untuk buka kamera',
-                                  style: TextStyle(
-                                      color: RitaColors.grey,
-                                      fontSize: 14)),
-                            ],
-                          ),
+                child: Text(
+                  'Sejajarkan QR dalam bingkai',
+                  style: RitaType.captionHint.copyWith(
+                    color: cameraOn ? Colors.white70 : RitaPalette.hint,
                   ),
                 ),
               ),
             ),
-        ],
+          ],
+        ),
       ),
     );
   }

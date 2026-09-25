@@ -3,14 +3,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/database/session_repository.dart';
 import '../../core/error/app_error.dart';
+import '../../core/ui/design_system/rita_band.dart';
+import '../../core/ui/design_system/rita_buttons.dart';
+import '../../core/ui/design_system/rita_card.dart';
+import '../../core/ui/design_system/rita_field.dart';
+import '../../core/ui/design_system/rita_tokens.dart';
 import '../../core/ui/rita_dialog.dart';
-import '../../core/ui/rita_theme.dart';
 import '../catalog/sync_gate.dart';
 import '../racks/rack_list_screen.dart';
 import 'setup_service.dart';
 
-/// Form mulai sesi: kode sesi + koor + inspektor + rak satu-satu.
-/// Tanpa barcode, tanpa lokasi.
+/// Form mulai sesi (v5): kode sesi + koor + inspektor + rak satu-satu.
 class SessionFormScreen extends ConsumerStatefulWidget {
   const SessionFormScreen({super.key});
 
@@ -60,10 +63,15 @@ class _SessionFormScreenState extends ConsumerState<SessionFormScreen> {
     try {
       // Gerbang: wajib online + master segar. Batal = tetap di form,
       // tidak ada sesi/inspector yang terbuat.
-      final proceed =
-          await ensureOnlineAndFresh(context, container, 'Masuk sesi');
+      final proceed = await ensureOnlineAndFresh(
+        context,
+        container,
+        'Masuk sesi',
+      );
       if (!proceed || !mounted) return;
-      final session = await ref.read(setupServiceProvider).setup(
+      final session = await ref
+          .read(setupServiceProvider)
+          .setup(
             sesiCode: sesiCtrl.text.trim(),
             coorCode: coorCtrl.text.trim(),
             inspectorCode: inspectorCtrl.text.trim(),
@@ -72,8 +80,9 @@ class _SessionFormScreenState extends ConsumerState<SessionFormScreen> {
       ref.read(activeSessionProvider.notifier).set(session);
       ref.invalidate(sessionListProvider);
       if (!mounted) return;
-      Navigator.of(context).pushReplacement(MaterialPageRoute(
-          builder: (_) => const RackListScreen()));
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const RackListScreen()),
+      );
     } catch (e) {
       final msg = e is AppFailure ? e.userMessage : e.toString();
       if (mounted) setState(() => error = msg);
@@ -93,138 +102,148 @@ class _SessionFormScreenState extends ConsumerState<SessionFormScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Column(
-          children: [
-            Text('Mulai Sesi',
-                style: TextStyle(
-                    color: Colors.black,
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold)),
-            Text('Masukan informasi untuk memulai sesi',
-                style:
-                    TextStyle(color: RitaColors.grey, fontSize: 12)),
-          ],
-        ),
+      appBar: RitaBand(
+        title: 'Mulai sesi',
+        subtitle: 'Kode sesi, koordinator, inspektur',
+        onBack: () => Navigator.of(context).pop(),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.only(bottom: 50),
+        padding: const EdgeInsets.fromLTRB(
+          RitaSpace.screen,
+          RitaSpace.md,
+          RitaSpace.screen,
+          100,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            RitaInput(
+            RitaField(
+              label: 'KODE SESI',
               controller: sesiCtrl,
-              title: 'Kode Sesi',
-              hint: 'contoh : SO-2026-01',
-              maxLength: 20,
-              keyboardType: TextInputType.text,
+              hint: 'contoh: SO-2026-01',
+              textInputAction: TextInputAction.next,
             ),
-            RitaInput(
+            const SizedBox(height: RitaSpace.md),
+            RitaField(
+              label: 'KODE KOORDINATOR',
               controller: coorCtrl,
-              title: 'Kode Koordinator',
-              hint: 'contoh : KOOR1',
-              maxLength: 20,
-              keyboardType: TextInputType.text,
+              hint: 'contoh: KOOR1',
+              textInputAction: TextInputAction.next,
             ),
-            RitaInput(
+            const SizedBox(height: RitaSpace.md),
+            RitaField(
+              label: 'KODE INSPEKTOR',
               controller: inspectorCtrl,
-              title: 'Kode Inspektor',
-              hint: 'contoh : INSPECTOR1',
-              maxLength: 20,
-              keyboardType: TextInputType.text,
+              hint: 'contoh: INSPECTOR1',
+              textInputAction: TextInputAction.done,
             ),
-            Container(
-              padding: const EdgeInsets.all(15),
-              margin: const EdgeInsets.all(10),
-              width: double.infinity,
-              decoration: const BoxDecoration(
-                border: Border(top: BorderSide(color: Colors.black)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('RAK',
-                      style: TextStyle(
-                          color: Color(0xFF616161),
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1.0)),
-                  SizedBox(
-                    width: 220,
+            const SizedBox(height: RitaSpace.lg),
+            Text(
+              'RAK - ${rakNames.length} DITAMBAHKAN',
+              style: RitaType.sectionLabel,
+            ),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Expanded(
+                  child: SizedBox(
+                    height: RitaSizes.field,
                     child: TextField(
                       controller: rakCtrl,
-                      maxLength: 10,
                       keyboardType: TextInputType.number,
                       onSubmitted: (_) => _addRak(),
+                      style: RitaType.body,
                       decoration: InputDecoration(
-                        labelText: 'contoh: 1021',
-                        labelStyle: const TextStyle(
-                            fontSize: 12, color: RitaColors.lightGrey),
-                        focusedBorder: const UnderlineInputBorder(
-                          borderSide: BorderSide(color: RitaColors.red),
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: RitaSpace.md,
                         ),
-                        suffix: IconButton(
-                          onPressed: _addRak,
-                          icon: const Icon(Icons.add_circle,
-                              color: RitaColors.red),
+                        hintText: 'Nomor rak, mis. 1021',
+                        hintStyle: RitaType.hint,
+                        filled: true,
+                        fillColor: RitaPalette.white,
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(RitaRadius.md),
+                          borderSide: const BorderSide(
+                            color: RitaPalette.border,
+                          ),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(RitaRadius.md),
+                          borderSide: const BorderSide(
+                            color: RitaPalette.focus,
+                            width: 2,
+                          ),
                         ),
                       ),
-                      style: const TextStyle(fontSize: 16),
                     ),
                   ),
-                ],
-              ),
-            ),
-            ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: rakNames.length,
-              itemBuilder: (_, i) => Card(
-                margin:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                shape: RoundedRectangleBorder(
-                  side: const BorderSide(color: Colors.black),
-                  borderRadius: BorderRadius.circular(12),
                 ),
-                child: Padding(
+                const SizedBox(width: RitaSpace.xs),
+                SizedBox(
+                  width: 94,
+                  height: RitaSizes.field,
+                  child: FilledButton(
+                    onPressed: _addRak,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: RitaPalette.primary,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(RitaRadius.md),
+                      ),
+                    ),
+                    child: const Text(
+                      'Tambah',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            if (rakNames.isNotEmpty) ...[
+              const SizedBox(height: RitaSpace.sm),
+              for (var i = 0; i < rakNames.length; i++) ...[
+                if (i > 0) const SizedBox(height: RitaSpace.xs),
+                RitaCard(
                   padding: const EdgeInsets.symmetric(
-                      vertical: 12, horizontal: 17),
+                    horizontal: RitaSpace.md,
+                    vertical: 2,
+                  ),
                   child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(rakNames[i],
-                          style: const TextStyle(
-                              fontWeight: FontWeight.bold, fontSize: 16)),
-                      IconButton(
-                        icon: const Icon(Icons.delete,
-                            color: RitaColors.red, size: 28),
-                        onPressed: () =>
-                            setState(() => rakNames.removeAt(i)),
+                      Expanded(
+                        child: Text(rakNames[i], style: RitaType.cardTitle),
+                      ),
+                      RitaIconButton(
+                        icon: Icons.delete_outline,
+                        color: RitaPalette.primary,
+                        tooltip: 'Hapus rak',
+                        onPressed: () => setState(() => rakNames.removeAt(i)),
                       ),
                     ],
                   ),
                 ),
+              ],
+            ],
+            if (error != null) ...[
+              const SizedBox(height: RitaSpace.sm),
+              Text(
+                error!,
+                style: RitaType.caption.copyWith(color: RitaPalette.error),
               ),
-            ),
-            if (error != null)
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Text(error!,
-                    style: const TextStyle(color: Colors.red)),
-              ),
+            ],
           ],
         ),
       ),
       bottomNavigationBar: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: FilledButton(
+          padding: const EdgeInsets.all(RitaSpace.screen),
+          child: RitaPrimaryButton(
+            label: 'LANJUT KE RAK',
+            loading: busy,
             onPressed: busy ? null : _submit,
-            child: Text(busy ? 'Menyimpan...' : 'Masuk'),
           ),
         ),
       ),
