@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'design_system/rita_tokens.dart';
+
 /// Guard global anti-tumpuk: hanya 1 dialog Rita yang boleh terbuka.
 /// Dialog kedua yang diminta selagi ada dialog terbuka langsung diabaikan
 /// (return null) kecuali [force] = true (untuk dialog blocking seperti sync).
@@ -69,11 +71,17 @@ class RitaAlert extends StatelessWidget {
     return AlertDialog(
       scrollable: true,
       clipBehavior: Clip.antiAlias,
+      backgroundColor: RitaPalette.white,
+      surfaceTintColor: Colors.transparent,
+      titleTextStyle: RitaType.cardTitle,
+      contentTextStyle: RitaType.meta,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(RitaRadius.lg),
       ),
-      insetPadding:
-          const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      insetPadding: const EdgeInsets.symmetric(
+        horizontal: RitaSpace.screen,
+        vertical: RitaSpace.lg,
+      ),
       contentPadding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
       actionsPadding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
       title: title,
@@ -85,11 +93,7 @@ class RitaAlert extends StatelessWidget {
 
 /// Judul dialog dengan ikon + teks yang tidak overflow di layar sempit.
 class RitaDialogTitle extends StatelessWidget {
-  const RitaDialogTitle({
-    super.key,
-    required this.icon,
-    required this.text,
-  });
+  const RitaDialogTitle({super.key, required this.icon, required this.text});
 
   final IconData icon;
   final String text;
@@ -98,14 +102,10 @@ class RitaDialogTitle extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Icon(icon, size: 28, color: const Color(0xFFC00000)),
-        const SizedBox(width: 8),
+        Icon(icon, size: RitaSizes.iconGlyph, color: RitaPalette.primary),
+        const SizedBox(width: RitaSpace.xs),
         Expanded(
-          child: Text(
-            text,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
+          child: Text(text, maxLines: 2, overflow: TextOverflow.ellipsis),
         ),
       ],
     );
@@ -146,10 +146,7 @@ Future<void> showRitaError({
       title: RitaDialogTitle(icon: Icons.error_outline, text: title),
       content: Text(message),
       actions: [
-        FilledButton(
-          onPressed: () => Navigator.pop(ctx),
-          child: Text(okLabel),
-        ),
+        FilledButton(onPressed: () => Navigator.pop(ctx), child: Text(okLabel)),
       ],
     ),
   ).then((_) {});
@@ -157,7 +154,8 @@ Future<void> showRitaError({
 
 /// Dialog konfirmasi sederhana (OK / Batal-Hapus / dsb) — pengganti
 /// AlertDialog mentah di home/rack/sync agar konsisten & anti-overflow.
-Future<bool?> showRitaConfirm({  required BuildContext context,
+Future<bool?> showRitaConfirm({
+  required BuildContext context,
   required String title,
   required String message,
   String cancelLabel = 'Batal',
@@ -178,9 +176,7 @@ Future<bool?> showRitaConfirm({  required BuildContext context,
         ),
         FilledButton(
           style: destructive
-              ? FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFFC00000),
-                )
+              ? FilledButton.styleFrom(backgroundColor: RitaPalette.primary)
               : null,
           onPressed: () => Navigator.pop(ctx, true),
           child: Text(confirmLabel),
